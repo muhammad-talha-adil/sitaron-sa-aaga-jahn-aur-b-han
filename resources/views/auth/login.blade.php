@@ -109,7 +109,7 @@
                                 confirmButton: "btn btn-success"
                             }
                         });
-                        window.location = base_url + 'students/create-individual';
+                        window.location = base_url + 'students/create';
                     } else {
                         error_toaster(response.message);
                     }

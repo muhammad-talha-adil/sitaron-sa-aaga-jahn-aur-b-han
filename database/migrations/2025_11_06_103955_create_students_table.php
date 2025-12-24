@@ -15,15 +15,17 @@ class CreateStudentsTable extends Migration
     {
         Schema::create('students', function (Blueprint $table) {
             $table->id();
-            $table->string('school')->nullable();
+            $table->string('school_name')->nullable();
             $table->string('name');
             $table->string('father');
             $table->date('dob');
+            $table->integer('age');
             $table->enum('grade', ['8', '9','10']);
-            $table->enum('gender', ['male', 'female']);
+            $table->enum('gender', ['male']);
             $table->string('contact')->nullable();
-            $table->string('roll_number')->unique();
-            $table->string('payment_receipt_individual')->nullable();
+            $table->string('participation_id')->unique();
+            $table->string('payment_receipt')->nullable();
+            $table->string('student_image')->nullable();
             $table->softDeletes();
             $table->timestamps();
         });

@@ -12,11 +12,7 @@
                 <!--begin::Title-->
                 <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">
                     @yield('page_title')
-                    @if(isset($selected_school) && $selected_school)
-                        - {{ $selected_school->school_name }} - (Total:{{ $school_student_count }})
-                    @else
                     - (Total:{{$student_count}})
-                    @endif
                 </h1>
                 <!--end::Title-->
             </div>
@@ -67,33 +63,14 @@
                                         <div class="card-toolbar flex-row-fluid justify-content-end gap-5">
                                             <!--begin::Filters-->
                                             <div class="d-flex align-items-center gap-3">
-                                                <!-- School Filter -->
-                                                <select class="form-select form-select-solid fw-bold school-filter" id="school_filter" style="width: 150px;">
-                                                    <option value="">All Schools</option>
-                                                    @foreach($schools as $school)
-                                                        <option value="{{ $school->id }}" {{ $selected_school_id == $school->id ? 'selected' : '' }}>{{ $school->school_name }}</option>
-                                                    @endforeach
-                                                </select>
+                                                
 
                                                 <!-- Grade Filter -->
-                                                <select class="form-select form-select-solid fw-bold grade-filter" id="grade_filter" style="width: 120px;">
+                                                <select class="form-select form-select-solid fw-bold grade-filter" id="grade_filter" style="width: 140px;">
                                                     <option value="">All Grades</option>
-                                                    <option value="5" {{ request('grade') == '5' ? 'selected' : '' }}>5th Grade</option>
                                                     <option value="8" {{ request('grade') == '8' ? 'selected' : '' }}>8th Grade</option>
-                                                </select>
-
-                                                <!-- Gender Filter -->
-                                                <select class="form-select form-select-solid fw-bold gender-filter" id="gender_filter" style="width: 120px;">
-                                                    <option value="">All Genders</option>
-                                                    <option value="male" {{ request('gender') == 'male' ? 'selected' : '' }}>Male</option>
-                                                    <option value="female" {{ request('gender') == 'female' ? 'selected' : '' }}>Female</option>
-                                                </select>
-
-                                                <!-- Participation Filter -->
-                                                <select class="form-select form-select-solid fw-bold participation-filter" id="participation_filter" style="width: 160px;">
-                                                    <option value="" {{ !request('participate_with') ? 'selected' : '' }}>All Students</option>
-                                                    <option value="school" {{ request('participate_with') == 'school' ? 'selected' : '' }}>School Students</option>
-                                                    <option value="individual" {{ request('participate_with') == 'individual' ? 'selected' : '' }}>Individual Students</option>
+                                                    <option value="9" {{ request('grade') == '9' ? 'selected' : '' }}>9th Grade</option>
+                                                    <option value="10" {{ request('grade') == '10' ? 'selected' : '' }}>10th Grade</option>
                                                 </select>
                                             </div>
                                             <!--end::Filters-->
@@ -108,12 +85,12 @@
                                             <thead>
                                                 <tr class="text-start text-muted fw-bold fs-7 text-uppercase gs-0">
                                                     <th class="min-w-50px">#</th>
-                                                    <th class="min-w-125px">Roll Number</th>
+                                                    <th class="min-w-125px">Participation ID</th>
                                                     <th class="min-w-250px">Student Details</th>
                                                     <th class="min-w-125px">School</th>
                                                     <th class="min-w-125px">Grade & Gender</th>
-                                                    <!-- Individual Student Columns -->
-                                                    <th class="min-w-100px text-center individual-column" style="display: none;">Receipt</th>
+                                                    <th class="min-w-100px text-center">Receipt</th>
+                                                    <th class="min-w-100px text-center">Student Image</th>
                                                     <th class="min-w-125px text-center">Roll Slip</th>
                                                     <th class="text-end min-w-100px">Actions</th>
                                                 </tr>
@@ -122,30 +99,40 @@
                                                 @foreach($students as $index => $student)
                                                 <tr class="border-bottom-dotted border-bottom-5">
                                                     <td class="text-center">{{ $index + 1 }}</td>
-                                                    <td>{{ $student->roll_number }}</td>
+                                                    <td>{{ $student->participation_id }}</td>
                                                     <td>
-                                                        <div><strong>{{ $student->display_name }}</strong></div>
+                                                        <div><strong>{{ $student->name }}</strong></div>
                                                         <div class="text-muted fs-7">Father: {{ $student->father }}</div>
                                                         <div class="text-muted fs-7">DOB: {{ \Carbon\Carbon::parse($student->dob)->format('d/m/Y') }}</div>
-                                                        @if($student->participate_with === 'individual')
+                                                        @if($student->contact)
                                                             <div class="text-muted fs-7">Contact: {{ $student->contact }}</div>
                                                         @endif
                                                     </td>
-                                                    <td>{{ $student->participate_with === 'school' ? ($student->school ? $student->school->school_name : 'N/A') : $student->school_name }}</td>
+                                                    <td>{{ $student->school_name }}</td>
                                                     <td>
                                                         <div>{{ $student->grade }}th Grade</div>
                                                         <div class="text-muted fs-7">{{ ucfirst($student->gender) }}</div>
                                                     </td>
-                                                    <!-- Individual Student Columns -->
-                                                    <td class="text-center individual-column" style="display: none;">
-                                                        @if($student->participate_with === 'individual' && $student->payment_receipt_individual)
-                                                            <a href="{{ asset($student->payment_receipt_individual) }}" target="_blank">
-                                                                <img src="{{ asset($student->payment_receipt_individual) }}"
+                                                    <td class="text-center">
+                                                        @if($student->payment_receipt)
+                                                            <a href="{{ asset($student->payment_receipt) }}" target="_blank">
+                                                                <img src="{{ asset($student->payment_receipt) }}"
                                                                     alt="Receipt"
                                                                     style="width:50px; height:50px; object-fit:cover; border-radius:6px; border:1px solid #ddd;">
                                                             </a>
-                                                        @elseif($student->participate_with === 'individual')
+                                                        @else
                                                             <span class="badge bg-light text-muted">No Receipt</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="text-center">
+                                                        @if($student->student_image)
+                                                            <a href="{{ asset($student->student_image) }}" target="_blank">
+                                                                <img src="{{ asset($student->student_image) }}"
+                                                                    alt="Student Image"
+                                                                    style="width:50px; height:50px; object-fit:cover; border-radius:6px; border:1px solid #ddd;">
+                                                            </a>
+                                                        @else
+                                                            <span class="badge bg-light text-muted">No Image</span>
                                                         @endif
                                                     </td>
                                                     <td class="text-center">
@@ -155,11 +142,7 @@
                                                         </button>
                                                     </td>
                                                     <td class="text-end">
-                                                        @if($student->participate_with === 'school')
-                                                            <a href="{{ url('students/' . $student->id . '/edit') }}" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1">
-                                                        @else
-                                                            <a href="{{ url('students/' . $student->id . '/edit-individual') }}" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1">
-                                                        @endif
+                                                        <a href="{{ url('students/' . $student->id . '/edit') }}" class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1">
                                                             <i class="ki-duotone ki-pencil fs-2">
                                                                 <span class="path1"></span>
                                                                 <span class="path2"></span>
@@ -202,22 +185,12 @@
     var api_base_url = '{{ env('API_URL') }}';
     $(document).ready(function () {
         initialize_datatable({ document_title: 'Students List' });
-
-        // Show/hide individual columns based on participation filter
-        if ($('#participation_filter').val() === 'individual') {
-            $('.individual-column').show();
-        } else {
-            $('.individual-column').hide();
-        }
     });
 
     // Filter change handlers - reload page with query params
-    $(document).on('change', '.school-filter, .grade-filter, .gender-filter, .participation-filter', function () {
+    $(document).on('change', '.grade-filter', function () {
         let params = {
-            school_id: $('#school_filter').val(),
-            grade: $('#grade_filter').val(),
-            gender: $('#gender_filter').val(),
-            participate_with: $('#participation_filter').val()
+            grade: $('#grade_filter').val()
         };
 
         // Build query string

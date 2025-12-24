@@ -10,19 +10,17 @@ class Student extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $guarded = [];
-
-    public function school()
-    {
-        return $this->belongsTo(School::class);
-    }
-
-    public function getDisplayNameAttribute()
-    {
-        $name = $this->name;
-        if ($this->participate_with === 'individual') {
-            $name .= ' (Individual)';
-        }
-        return $name;
-    }
+    protected $fillable = [
+        'school_name',
+        'name',
+        'father',
+        'dob',
+        'age',
+        'grade',
+        'gender',
+        'contact',
+        'participation_id',
+        'payment_receipt',
+        'student_image',
+    ];
 }

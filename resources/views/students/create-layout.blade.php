@@ -1,5 +1,5 @@
 @extends('layout.master')
-@section('page_title', 'Register School')
+@section('page_title', 'Register Student')
 @section('content')
     <!--begin::Content wrapper-->
     <div class="d-flex flex-column flex-column-fluid">
@@ -17,28 +17,16 @@
                 <!--end::Page title-->
                 <!--begin::Actions-->
                 <div class="d-flex align-items-center gap-2 gap-lg-3">
-
                     <!--begin::Primary button-->
-                    <a style="display: {{ session()->get('role')->code == 'admin' ? "" : "none" }}"
-                        href="{{env('BASE_URL') . 'schools'}}" class="btn btn-sm fw-bold btn-secondary schools-list-link">
+                    {{-- <a href="{{ url('schools/create') }}" class="btn btn-sm fw-bold btn-success"
+                >
+                    <i class="bi bi-list-check"></i>
+                    Register Your School
+                </a> --}}
+                    <a href="{{ url('students') }}" class="btn btn-sm fw-bold btn-secondary">
                         <i class="bi bi-list-check"></i>
-                        Schools List
+                        Students List
                     </a>
-                    <a   href="{{env('BASE_URL') . 'students/create'}}"
-                        class="btn btn-sm fw-bold btn-success schools-list-link">
-                        <i class="bi bi-list-check"></i>
-                        Add Student
-                    </a>
-                    <!--end::Primary button-->
-
-                    <!--begin::Primary button-->
-                    <button style="display: none" type="submit" class="btn btn-sm btn-primary submit-btn school-save-btn">
-                        <i class="bi bi-save"></i>
-                        <span class="indicator-label submit-btn-label">Submit</span>
-                        <span class="indicator-progress  submitted-processing-label">Please wait...
-                            <span class="spinner-border spinner-border-sm align-middle ms-2"></span>
-                        </span>
-                    </button>
                     <!--end::Primary button-->
                 </div>
                 <!--end::Actions-->
@@ -59,39 +47,64 @@
                             <!--begin::Row-->
                             <div class="row mb-3">
                                 <!--begin::Col-->
-                                <div class="col-md-12 pe-lg-10 text-center ">
-                                    @if(session()->get('role')->code == 'admin')
-
-                                        @include('schools.create-form')
-
-                                    @else
-
-                                        <!--<h1>Thank you for your interest.</h1>
-                                            <p>All seats have been reserved. We'll arrange another session soon.</p>-->
-                                        @include('schools.create-form')
-
-                                    @endif
-
+                                <div class="col-md-12 pe-lg-10">
+                                    @include('students.create-form')
                                 </div>
-                                <!--end::Col-->
                                 <!--end::Col-->
                             </div>
                             <!--end::Row-->
-
                         </div>
                         <!--end::Form-->
                     </div>
-                    <!--end::Card body-->
                 </div>
-                <!--end::Card-->
             </div>
-            <!--end::Content container-->
         </div>
-        <!--end::Content-->
-    </div>
-    <!--end::Content wrapper-->
-@endsection
+    @endsection
 
-@section('page_level_scripts')
-    @yield('create_form_js')
-@endsection
+    @section('page_level_scripts')
+        @yield('create_form_js')
+        <script>
+            $('#dob').on('change', function() {
+                const today = new Date();
+                const birthDate = new Date(this.value);
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const m = today.getMonth() - birthDate.getMonth();
+                if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+                $('#age').val(age);
+
+                const ageLimit = 11;
+                if (age < ageLimit || age > 16) {
+                    $('#ageError').text('Age Limit: 11-16');
+                } else {
+                    $('#ageError').text('');
+                }
+
+            });
+
+            $('#contact').on('input', function() {
+                let value = $(this).val();
+
+                // keep only digits
+                value = value.replace(/[^0-9]/g, '');
+
+                // max 11 digits
+                if (value.length > 11) {
+                    value = value.slice(0, 11);
+                }
+
+                // apply format 0321-1111111
+                let formatted;
+                if (value.length <= 4) {
+                    formatted = value;
+                } else {
+                    formatted = value.slice(0, 4) + '-' + value.slice(4);
+                }
+
+                if ($(this).val() !== formatted) {
+                    $(this).val(formatted);
+                }
+            });
+        </script>
+    @endsection

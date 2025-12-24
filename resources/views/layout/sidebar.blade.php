@@ -141,7 +141,7 @@
 
                             <!--begin:Menu link-->
                             <a class="menu-link"
-                               href="{{env('BASE_URL').'students/create-individual'}}">
+                               href="{{env('BASE_URL').'students/create'}}">
                                 <span class="menu-bullet">
                                     <span class="bullet bullet-dot"></span>
                                 </span>

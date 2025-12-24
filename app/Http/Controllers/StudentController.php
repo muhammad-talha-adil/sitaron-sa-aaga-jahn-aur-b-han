@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\School;
 use App\Models\Student;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -17,35 +17,17 @@ class StudentController extends Controller
 
     public function index(Request $request)
     {
-        $schoolId = $request->get('school_id');
         $studentsCount = Student::count();
         $grade = $request->get('grade');
-        $gender = $request->get('gender');
-        $participateWith = $request->get('participate_with');
 
-        $query = Student::with('school');
-
-        if ($schoolId) {
-            $query->where('school_id', $schoolId);
-        }
+        $query = Student::query();
 
         if ($grade) {
             $query->where('grade', $grade);
         }
 
-        if ($gender) {
-            $query->where('gender', $gender);
-        }
-
-        if ($participateWith) {
-            $query->where('participate_with', $participateWith);
-        }
-
-        $this->data['students'] = $query->orderBy('roll_number', 'asc')->get();
-        $this->data['school_student_count'] = $query->orderBy('roll_number', 'asc')->count();
-        $this->data['schools'] = School::orderBy('school_name', 'asc')->get();
-        $this->data['selected_school_id'] = $request->get('school_id');
-        $this->data['selected_school'] = $schoolId ? School::find($schoolId) : null;
+        $this->data['students'] = $query->orderBy('participation_id', 'asc')->get();
+        $this->data['school_student_count'] = $query->orderBy('participation_id', 'asc')->count();
         $this->data['student_count'] = $studentsCount;
         $this->data['menu'] = "students_list";
         return view('students.list', $this->data);
@@ -53,32 +35,23 @@ class StudentController extends Controller
 
     public function create(Request $request)
     {
-        // $this->data['schools'] = School::all();
-        $this->data['schools'] = School::orderBy('school_name', 'asc')->get();
-        $this->data['selected_school_id'] = $request->get('school_id');
         $this->data['menu'] = "add_student";
-        return view('students.create', $this->data);
-    }
-
-    public function createIndividual(Request $request)
-    {
-        $this->data['schools'] = School::all();
-        $this->data['selected_school_id'] = $request->get('school_id');
-        $this->data['menu'] = "add_student";
-        return view('students.create-individual-layout', $this->data);
+        return view('students.create-layout', $this->data);
     }
 
     public function store(Request $request)
     {
         $rules = [
+            'school_name' => 'nullable|string|max:191',
             'name' => 'required|string|max:191',
             'father' => 'required|string|max:191',
             'dob' => 'required|date',
             'age' => 'required|integer',
-            'grade' => 'required|in:5,8',
-            'gender' => 'required|in:male,female',
-            'contact' => 'required|tel',
-            'school' => 'required|exists:schools,id',
+            'gender' => 'required|in:male',
+            'grade' => 'required|in:8,9,10',
+            'contact' => 'nullable|string|max:191',
+            'payment_receipt' => 'required|image|mimes:jpg,jpeg,png|max:3072',
+            'student_image' => 'nullable|image|mimes:jpg,jpeg,png|max:3072',
         ];
 
         $validator = Validator::make($request->all(), $rules);
@@ -94,92 +67,62 @@ class StudentController extends Controller
             }
         }
 
-        // Generate roll number
-        $rollNumber = $this->generateRollNumber($request->gender);
+        // Generate participation id
+        $participationId = $this->generateParticipationId();
 
         // Ensure uniqueness in case of concurrent requests
-        while (Student::where('roll_number', $rollNumber)->exists()) {
-            $rollNumber = $this->incrementRollNumber($rollNumber);
-        }
-
-        $studentData = [
-            'name' => $request->name,
-            'father' => $request->father,
-            'dob' => $request->dob,
-            'grade' => $request->grade,
-            'gender' => $request->gender,
-            'participate_with' => 'school',
-            'roll_number' => $rollNumber,
-            'school_id' => $request->school_id,
-        ];
-
-        $student = Student::create($studentData);
-
-        if ($request->expectsJson()) {
-            return response()->json([
-                'status' => true,
-                'message' => "Student {$student->name} created successfully with Roll Number: {$student->roll_number}",
-                'data' => $student,
-            ]);
-        } else {
-            return redirect()->back()->with('success', "Student {$student->name} created successfully with Roll Number: {$student->roll_number}");
-        }
-    }
-
-    public function storeIndividual(Request $request)
-    {
-        $rules = [
-            'name' => 'required|string|max:191',
-            'father' => 'required|string|max:191',
-            'dob' => 'required|date',
-            'grade' => 'required|in:5,8',
-            'gender' => 'required|in:male,female',
-            'school_name' => 'required|string|max:191',
-            'contact' => 'required|string|max:191',
-            'payment_receipt_individual' => 'required|image|mimes:jpg,jpeg,png|max:3072',
-        ];
-
-        $validator = Validator::make($request->all(), $rules);
-
-        if ($validator->fails()) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'status' => false,
-                    'message' => $validator->errors()->first()
-                ]);
-            } else {
-                return redirect()->back()->withErrors($validator)->withInput();
-            }
-        }
-
-        // Generate roll number
-        $rollNumber = $this->generateRollNumber($request->grade, $request->gender);
-
-        // Ensure uniqueness in case of concurrent requests
-        while (Student::where('roll_number', $rollNumber)->exists()) {
-            $rollNumber = $this->incrementRollNumber($rollNumber);
+        while (Student::where('participation_id', $participationId)->exists()) {
+            $participationId++;
         }
 
         // Handle receipt upload
         $receiptPath = null;
-        if ($request->hasFile('payment_receipt_individual')) {
-            $file = $request->file('payment_receipt_individual');
+        if ($request->hasFile('payment_receipt')) {
+            $receiptDir = public_path('receipts');
+            File::makeDirectory($receiptDir, 0755, true, true);
+            $file = $request->file('payment_receipt');
             $filename = Str::random(40) . '.' . $file->getClientOriginalExtension();
-            $file->move(public_path('receipts/individual'), $filename);
-            $receiptPath = 'receipts/individual/' . $filename;
+            try {
+                $file->move($receiptDir, $filename);
+                $receiptPath = 'receipts/' . $filename;
+            } catch (\Exception $e) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'The payment receipt failed to upload.'
+                ]);
+            }
+        }
+
+        // Handle image upload
+        $imagePath = null;
+        if ($request->hasFile('student_image')) {
+            $imageDir = public_path('images/students');
+            File::makeDirectory($imageDir, 0755, true, true);
+            $file = $request->file('student_image');
+            $filename = Str::random(40) . '.' . $file->getClientOriginalExtension();
+            try {
+                $file->move($imageDir, $filename);
+                $imagePath = 'images/students/' . $filename;
+            } catch (\Exception $e) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'The student image failed to upload.'
+                ]);
+            }
         }
 
         $studentData = [
+            'school_name' => $request->school_name,
             'name' => $request->name,
             'father' => $request->father,
             'dob' => $request->dob,
+            'age' => $request->age,
             'grade' => $request->grade,
             'gender' => $request->gender,
-            'participate_with' => 'individual',
-            'roll_number' => $rollNumber,
-            'school_name' => $request->school_name,
+            'participation_id' => $participationId,
             'contact' => $request->contact,
-            'payment_receipt_individual' => $receiptPath,
+            'payment_receipt' => $receiptPath,
+            'student_image' => $imagePath,
         ];
 
         $student = Student::create($studentData);
@@ -187,54 +130,37 @@ class StudentController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'status' => true,
-                'message' => "Individual Student {$student->name} created successfully with Roll Number: {$student->roll_number}",
+                'message' => "Student {$student->name} created successfully with Participation ID: {$student->participation_id}",
                 'data' => $student,
             ]);
         } else {
-            return redirect()->back()->with('success', "Individual Student {$student->name} created successfully with Roll Number: {$student->roll_number}");
+            return redirect()->back()->with('success', "Student {$student->name} created successfully with Participation ID: {$student->participation_id}");
         }
     }
 
     public function edit($id)
     {
         $student = Student::findOrFail($id);
-        if ($student->participate_with === 'school') {
-            $this->data['student'] = $student;
-            $this->data['schools'] = School::all();
-            $this->data['menu'] = "students_list";
-            return view('students.edit-layout', $this->data);
-        } else {
-            return redirect()->route('students.edit-individual', $id);
-        }
-    }
-
-    public function editIndividual($id)
-    {
-        $this->data['student'] = Student::findOrFail($id);
-        $this->data['schools'] = School::all();
+        $this->data['student'] = $student;
         $this->data['menu'] = "students_list";
-        return view('students.edit-individual-layout', $this->data);
+        return view('students.edit-layout', $this->data);
     }
 
     public function update(Request $request)
     {
         $rules = [
             'id' => 'required|exists:students,id',
+            'school_name' => 'nullable|string|max:191',
             'name' => 'required|string|max:191',
             'father' => 'required|string|max:191',
             'dob' => 'required|date',
-            'grade' => 'required|in:5,8',
-            'gender' => 'required|in:male,female',
-            'participate_with' => 'required|in:school,individual',
+            'age' => 'required|integer',
+            'grade' => 'required|in:8,9,10',
+            'gender' => 'required|in:male',
+            'contact' => 'nullable|string|max:191',
+            'payment_receipt' => 'nullable|image|mimes:jpg,jpeg,png|max:3072',
+            'student_image' => 'nullable|image|mimes:jpg,jpeg,png|max:3072',
         ];
-
-        if ($request->participate_with === 'school') {
-            $rules['school_id'] = 'required|exists:schools,id';
-        } else {
-            $rules['school_name'] = 'required|string|max:191';
-            $rules['contact'] = 'required|string|max:191';
-            $rules['payment_receipt_individual'] = 'nullable|image|mimes:jpg,jpeg,png|max:3072';
-        }
 
         $validator = Validator::make($request->all(), $rules);
 
@@ -247,49 +173,62 @@ class StudentController extends Controller
 
         $student = Student::findOrFail($request->id);
 
-        // Check if grade or gender changed, regenerate roll number if needed
-        $newRollNumber = $this->generateRollNumber($request->grade, $request->gender);
-        if ($student->roll_number != $newRollNumber) {
-            // Ensure uniqueness
-            while (Student::where('roll_number', $newRollNumber)->where('id', '!=', $student->id)->exists()) {
-                $newRollNumber = $this->incrementRollNumber($newRollNumber);
-            }
-        }
-
-        // Handle receipt upload for individual (replace if new one uploaded)
-        $receiptPath = $student->payment_receipt_individual;
-        if ($request->participate_with === 'individual' && $request->hasFile('payment_receipt_individual')) {
+        // Handle receipt upload (replace if new one uploaded)
+        $receiptPath = $student->payment_receipt;
+        if ($request->hasFile('payment_receipt')) {
             // Delete old file if exists
             if ($receiptPath && File::exists(public_path($receiptPath))) {
                 File::delete(public_path($receiptPath));
             }
-            $file = $request->file('payment_receipt_individual');
+            $receiptDir = public_path('receipts');
+            File::makeDirectory($receiptDir, 0755, true, true);
+            $file = $request->file('payment_receipt');
             $filename = Str::random(40) . '.' . $file->getClientOriginalExtension();
-            $file->move(public_path('receipts/individual'), $filename);
-            $receiptPath = 'receipts/individual/' . $filename;
+            try {
+                $file->move($receiptDir, $filename);
+                $receiptPath = 'receipts/' . $filename;
+            } catch (\Exception $e) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'The payment receipt failed to upload.'
+                ]);
+            }
+        }
+
+        // Handle image upload (replace if new one uploaded)
+        $imagePath = $student->student_image;
+        if ($request->hasFile('student_image')) {
+            // Delete old file if exists
+            if ($imagePath && File::exists(public_path($imagePath))) {
+                File::delete(public_path($imagePath));
+            }
+            $imageDir = public_path('images/students');
+            File::makeDirectory($imageDir, 0755, true, true);
+            $file = $request->file('student_image');
+            $filename = Str::random(40) . '.' . $file->getClientOriginalExtension();
+            try {
+                $file->move($imageDir, $filename);
+                $imagePath = 'images/students/' . $filename;
+            } catch (\Exception $e) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'The student image failed to upload.'
+                ]);
+            }
         }
 
         $updateData = [
+            'school_name' => $request->school_name,
             'name' => $request->name,
             'father' => $request->father,
             'dob' => $request->dob,
+            'age' => $request->age,
             'grade' => $request->grade,
             'gender' => $request->gender,
-            'participate_with' => $request->participate_with,
-            'roll_number' => $newRollNumber,
+            'contact' => $request->contact,
+            'payment_receipt' => $receiptPath,
+            'student_image' => $imagePath,
         ];
-
-        if ($request->participate_with === 'school') {
-            $updateData['school_id'] = $request->school_id;
-            $updateData['school_name'] = null;
-            $updateData['contact'] = null;
-            $updateData['payment_receipt_individual'] = null;
-        } else {
-            $updateData['school_id'] = null;
-            $updateData['school_name'] = $request->school_name;
-            $updateData['contact'] = $request->contact;
-            $updateData['payment_receipt_individual'] = $receiptPath;
-        }
 
         $student->update($updateData);
 
@@ -316,8 +255,13 @@ class StudentController extends Controller
         $student = Student::find($request->id);
 
         // Delete receipt file if exists
-        if ($student->payment_receipt_individual && File::exists(public_path($student->payment_receipt_individual))) {
-            File::delete(public_path($student->payment_receipt_individual));
+        if ($student->payment_receipt && File::exists(public_path($student->payment_receipt))) {
+            File::delete(public_path($student->payment_receipt));
+        }
+
+        // Delete image file if exists
+        if ($student->student_image && File::exists(public_path($student->student_image))) {
+            File::delete(public_path($student->student_image));
         }
 
         $student->delete();
@@ -352,17 +296,15 @@ class StudentController extends Controller
 
     //     return $base;
     // }
-    private function generateRollNumber()
+    private function generateParticipationId()
     {
-        $baseNumbers = 12201;
+        $baseNumbers = 10001;
 
-
-
-        // Lock the table to avoid concurrent roll number collisions
+        // Lock the table to avoid concurrent participation id collisions
         return \DB::transaction(function () use ($baseNumbers) {
-            $maxRoll = Student::max('roll_number');
+            $maxId = Student::max('participation_id');
 
-            return $maxRoll ? $maxRoll + 1 : $baseNumbers;
+            return $maxId ? $maxId + 1 : $baseNumbers;
         });
     }
 
@@ -377,16 +319,10 @@ class StudentController extends Controller
 
     public function downloadPdf(Request $request)
     {
-        $schoolId = $request->input('school_id');
         $grade = $request->input('grade');
         $gender = $request->input('gender');
-        $participateWith = $request->input('participate_with');
 
-        $query = Student::with(['school']);
-
-        if ($schoolId) {
-            $query->where('school_id', $schoolId);
-        }
+        $query = Student::query();
 
         if ($grade) {
             $query->where('grade', (string) $grade);
@@ -396,11 +332,7 @@ class StudentController extends Controller
             $query->where('gender', $gender);
         }
 
-        if ($participateWith) {
-            $query->where('participate_with', $participateWith);
-        }
-
-        $students = $query->orderBy("roll_number", "ASC")->get();
+        $students = $query->orderBy("participation_id", "ASC")->get();
 
         if ($students->count() < 1) {
             return response()->json([
@@ -433,24 +365,20 @@ class StudentController extends Controller
 
     public function downloadRollSlips(Request $request)
     {
-        $schoolId = $request->input('school_id');
+        $query = Student::query();
 
-        $query = Student::with('school');
-
-        if ($schoolId) {
-            $query->where('school_id', $schoolId);
-        }
-
-        // Order by grade and gender as specified: 5th boys, 5th girls, 8th boys, 8th girls
+        // Order by grade and gender as specified: 8th boys, 8th girls, 9th boys, 9th girls, 10th boys, 10th girls
         $students = $query->orderByRaw("
             CASE
-                WHEN grade = 5 AND gender = 'male' THEN 1
-                WHEN grade = 5 AND gender = 'female' THEN 2
-                WHEN grade = 8 AND gender = 'male' THEN 3
-                WHEN grade = 8 AND gender = 'female' THEN 4
-                ELSE 5
+                WHEN grade = 8 AND gender = 'male' THEN 1
+                WHEN grade = 8 AND gender = 'female' THEN 2
+                WHEN grade = 9 AND gender = 'male' THEN 3
+                WHEN grade = 9 AND gender = 'female' THEN 4
+                WHEN grade = 10 AND gender = 'male' THEN 5
+                WHEN grade = 10 AND gender = 'female' THEN 6
+                ELSE 7
             END
-        ")->orderBy("roll_number", "ASC")->get();
+        ")->orderBy("participation_id", "ASC")->get();
 
         if ($students->count() < 1) {
             return response()->json([
@@ -496,7 +424,7 @@ class StudentController extends Controller
         }
 
         // Generate a unique filename
-        $filename = 'roll_slip_' . $student->roll_number . '_' . date('ymdhis');
+        $filename = 'roll_slip_' . $student->participation_id . '_' . date('ymdhis');
 
         // Load the PDF view for individual roll slip
         $pdf = Pdf::loadView('students.roll-slip-template', [
@@ -524,7 +452,7 @@ class StudentController extends Controller
         $student = Student::findOrFail($studentId);
 
         // Generate a unique filename
-        $filename = 'roll_slip_' . $student->roll_number . '_' . date('ymdhis');
+        $filename = 'roll_slip_' . $student->participation_id . '_' . date('ymdhis');
 
         // Load the PDF view for roll slip
         $pdf = Pdf::loadView('students.roll-slip-template', [
@@ -573,13 +501,15 @@ class StudentController extends Controller
         ]);
     }
 
-    public function rebuildRollNumbers()
+    public function rebuildParticipationIds()
     {
         $baseNumbers = [
-            '5_male' => 11201,
-            '5_female' => 12201,
             '8_male' => 13201,
             '8_female' => 14201,
+            '9_male' => 15201,
+            '9_female' => 16201,
+            '10_male' => 17201,
+            '10_female' => 18201,
         ];
 
         // Get all non-deleted students, order deterministically
@@ -596,17 +526,17 @@ class StudentController extends Controller
                 if (!isset($baseNumbers[$key]))
                     continue;
 
-                $roll = $baseNumbers[$key];
+                $id = $baseNumbers[$key];
                 foreach ($group as $student) {
-                    $student->update(['roll_number' => $roll]);
-                    $roll++;
+                    $student->update(['participation_id' => $id]);
+                    $id++;
                 }
             }
         });
 
         return response()->json([
             'status' => true,
-            'message' => 'All roll numbers rebuilt successfully.'
+            'message' => 'All participation ids rebuilt successfully.'
         ]);
     }
 
