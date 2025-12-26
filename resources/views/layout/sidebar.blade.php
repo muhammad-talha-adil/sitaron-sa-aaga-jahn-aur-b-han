@@ -150,14 +150,15 @@
                             <!--end:Menu link-->
 
                             <!--begin:Menu link-->
+                            @if(session()->get('role')->code == 'admin')
                             <a class="menu-link {{ isset($menu) && $menu == 'students_list' ? 'active' : '' }}"
-                                href="{{env('BASE_URL').'students'}}"
-                                style="display: {{ session()->get('role')->code == 'admin'|| session()->has("school") ? "" : "none" }}">
+                                href="{{env('BASE_URL').'students'}}">
                                 <span class="menu-bullet">
                                     <span class="bullet bullet-dot"></span>
                                 </span>
                                 <span class="menu-title fw-bold">Students List</span>
                             </a>
+                            @endif
                             <!--end:Menu link-->
                         </div>
                         <!--end:Menu item-->

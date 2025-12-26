@@ -23,10 +23,12 @@
                     <i class="bi bi-list-check"></i>
                     Register Your School
                 </a> --}}
+                    @if($is_admin)
                     <a href="{{ url('students') }}" class="btn btn-sm fw-bold btn-secondary">
                         <i class="bi bi-list-check"></i>
                         Students List
                     </a>
+                    @endif
                     <!--end::Primary button-->
                 </div>
                 <!--end::Actions-->

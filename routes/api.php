@@ -24,6 +24,8 @@ Route::prefix('/students')->group(function () {
     Route::post('/store', '\App\Http\Controllers\StudentController@store');
     Route::post('/update', '\App\Http\Controllers\StudentController@update');
     Route::post('/destroy', '\App\Http\Controllers\StudentController@destroy');
+    Route::post('/download-pdf', '\App\Http\Controllers\StudentController@downloadPdf');
+    Route::post('/download-roll-slips', '\App\Http\Controllers\StudentController@downloadRollSlips');
     Route::post('/download-single-roll-slip', '\App\Http\Controllers\StudentController@downloadSingleRollSlip');
 });
 

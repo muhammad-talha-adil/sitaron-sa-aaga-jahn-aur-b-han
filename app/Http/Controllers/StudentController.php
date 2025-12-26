@@ -6,6 +6,7 @@ use App\Models\Student;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -17,6 +18,11 @@ class StudentController extends Controller
 
     public function index(Request $request)
     {
+        // Check if user is admin
+        if (session()->get('role')->code !== 'admin') {
+            abort(403, 'Unauthorized');
+        }
+
         $studentsCount = Student::count();
         $grade = $request->get('grade');
 
@@ -36,6 +42,7 @@ class StudentController extends Controller
     public function create(Request $request)
     {
         $this->data['menu'] = "add_student";
+        $this->data['is_admin'] = session()->get('role')->code == 'admin';
         return view('students.create-layout', $this->data);
     }
 
@@ -79,13 +86,26 @@ class StudentController extends Controller
         $receiptPath = null;
         if ($request->hasFile('payment_receipt')) {
             $receiptDir = public_path('receipts');
-            File::makeDirectory($receiptDir, 0755, true, true);
+            if (!is_dir($receiptDir)) {
+                if (!mkdir($receiptDir, 0777, true)) {
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Failed to create receipts directory.'
+                    ]);
+                }
+            }
+            if (!is_writable($receiptDir)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Receipts directory is not writable.'
+                ]);
+            }
             $file = $request->file('payment_receipt');
             $filename = Str::random(40) . '.' . $file->getClientOriginalExtension();
-            try {
-                $file->move($receiptDir, $filename);
+            if ($file->move($receiptDir, $filename)) {
                 $receiptPath = 'receipts/' . $filename;
-            } catch (\Exception $e) {
+            } else {
+                Log::error('Payment receipt upload failed in update: filename ' . $filename . ', dir ' . $receiptDir);
                 return response()->json([
                     'status' => false,
                     'message' => 'The payment receipt failed to upload.'
@@ -97,13 +117,26 @@ class StudentController extends Controller
         $imagePath = null;
         if ($request->hasFile('student_image')) {
             $imageDir = public_path('images/students');
-            File::makeDirectory($imageDir, 0755, true, true);
+            if (!is_dir($imageDir)) {
+                if (!mkdir($imageDir, 0777, true)) {
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Failed to create images directory.'
+                    ]);
+                }
+            }
+            if (!is_writable($imageDir)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Images directory is not writable.'
+                ]);
+            }
             $file = $request->file('student_image');
             $filename = Str::random(40) . '.' . $file->getClientOriginalExtension();
-            try {
-                $file->move($imageDir, $filename);
+            if ($file->move($imageDir, $filename)) {
                 $imagePath = 'images/students/' . $filename;
-            } catch (\Exception $e) {
+            } else {
+                Log::error('Student image upload failed in update: filename ' . $filename . ', dir ' . $imageDir);
                 return response()->json([
                     'status' => false,
                     'message' => 'The student image failed to upload.'
@@ -127,14 +160,30 @@ class StudentController extends Controller
 
         $student = Student::create($studentData);
 
+        // Generate participation slip PDF
+        $filename = 'participation_slip_' . $student->participation_id . '_' . date('ymdhis') . '.pdf';
+        $pdf = Pdf::loadView('students.single-roll-slip-template', ['student' => $student]);
+        $pdf->setPaper('A4', 'portrait');
+
+        // Ensure downloads directory exists
+        $downloadsDir = public_path('downloads');
+        if (!is_dir($downloadsDir)) {
+            mkdir($downloadsDir, 0777, true);
+        }
+
+        $filePath = public_path('downloads/' . $filename);
+        $pdf->save($filePath);
+
         if ($request->expectsJson()) {
             return response()->json([
                 'status' => true,
                 'message' => "Student {$student->name} created successfully with Participation ID: {$student->participation_id}",
                 'data' => $student,
+                'download_url' => asset('downloads/' . $filename),
             ]);
         } else {
-            return redirect()->back()->with('success', "Student {$student->name} created successfully with Participation ID: {$student->participation_id}");
+            // Return PDF for download
+            return $pdf->download($filename);
         }
     }
 
@@ -181,13 +230,26 @@ class StudentController extends Controller
                 File::delete(public_path($receiptPath));
             }
             $receiptDir = public_path('receipts');
-            File::makeDirectory($receiptDir, 0755, true, true);
+            if (!is_dir($receiptDir)) {
+                if (!mkdir($receiptDir, 0777, true)) {
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Failed to create receipts directory.'
+                    ]);
+                }
+            }
+            if (!is_writable($receiptDir)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Receipts directory is not writable.'
+                ]);
+            }
             $file = $request->file('payment_receipt');
             $filename = Str::random(40) . '.' . $file->getClientOriginalExtension();
-            try {
-                $file->move($receiptDir, $filename);
+            if ($file->move($receiptDir, $filename)) {
                 $receiptPath = 'receipts/' . $filename;
-            } catch (\Exception $e) {
+            } else {
+                Log::error('Payment receipt upload failed in store: filename ' . $filename . ', dir ' . $receiptDir);
                 return response()->json([
                     'status' => false,
                     'message' => 'The payment receipt failed to upload.'
@@ -203,13 +265,26 @@ class StudentController extends Controller
                 File::delete(public_path($imagePath));
             }
             $imageDir = public_path('images/students');
-            File::makeDirectory($imageDir, 0755, true, true);
+            if (!is_dir($imageDir)) {
+                if (!mkdir($imageDir, 0777, true)) {
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Failed to create images directory.'
+                    ]);
+                }
+            }
+            if (!is_writable($imageDir)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Images directory is not writable.'
+                ]);
+            }
             $file = $request->file('student_image');
             $filename = Str::random(40) . '.' . $file->getClientOriginalExtension();
-            try {
-                $file->move($imageDir, $filename);
+            if ($file->move($imageDir, $filename)) {
                 $imagePath = 'images/students/' . $filename;
-            } catch (\Exception $e) {
+            } else {
+                Log::error('Student image upload failed in store: filename ' . $filename . ', dir ' . $imageDir);
                 return response()->json([
                     'status' => false,
                     'message' => 'The student image failed to upload.'
@@ -352,6 +427,39 @@ class StudentController extends Controller
         // Set paper size and orientation
         $pdf->setPaper('A4', 'portrait');
 
+        // Ensure downloads directory exists
+        $downloadsDir = public_path('downloads');
+        if (!is_dir($downloadsDir)) {
+            if (!mkdir($downloadsDir, 0777, true)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Failed to create downloads directory.'
+                ]);
+            }
+        }
+
+        // Ensure downloads directory exists
+        $downloadsDir = public_path('downloads');
+        if (!is_dir($downloadsDir)) {
+            if (!mkdir($downloadsDir, 0777, true)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Failed to create downloads directory.'
+                ]);
+            }
+        }
+
+        // Ensure downloads directory exists
+        $downloadsDir = public_path('downloads');
+        if (!is_dir($downloadsDir)) {
+            if (!mkdir($downloadsDir, 0777, true)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Failed to create downloads directory.'
+                ]);
+            }
+        }
+
         // Save the PDF to public/downloads
         $pdf->save(public_path() . '/downloads/' . $filename . '.pdf');
 
@@ -367,16 +475,13 @@ class StudentController extends Controller
     {
         $query = Student::query();
 
-        // Order by grade and gender as specified: 8th boys, 8th girls, 9th boys, 9th girls, 10th boys, 10th girls
+        // Order by grade: 8th, 9th, 10th
         $students = $query->orderByRaw("
             CASE
-                WHEN grade = 8 AND gender = 'male' THEN 1
-                WHEN grade = 8 AND gender = 'female' THEN 2
-                WHEN grade = 9 AND gender = 'male' THEN 3
-                WHEN grade = 9 AND gender = 'female' THEN 4
-                WHEN grade = 10 AND gender = 'male' THEN 5
-                WHEN grade = 10 AND gender = 'female' THEN 6
-                ELSE 7
+                WHEN grade = 8 THEN 1
+                WHEN grade = 9 THEN 2
+                WHEN grade = 10 THEN 3
+                ELSE 4
             END
         ")->orderBy("participation_id", "ASC")->get();
 
@@ -480,7 +585,9 @@ class StudentController extends Controller
         $student = Student::findOrFail($studentId);
 
         // Generate a unique filename
-        $filename = 'roll_slip_' . $student->roll_number . '_' . date('ymdhis');
+        $safeName = str_replace(' ', '_', $student->name);
+        $year = \Carbon\Carbon::parse($student->dob)->year;
+        $filename = $safeName . '-' . $year;
 
         // Load the PDF view for single roll slip
         $pdf = Pdf::loadView('students.single-roll-slip-template', [

@@ -258,6 +258,16 @@
 
                 do_post_ajax_callback_formData(params, function(response) {
                     if (response && response.status) {
+                        // Auto-download the participation slip
+                        if (response.download_url) {
+                            const link = document.createElement('a');
+                            link.href = response.download_url;
+                            link.download = 'participation_slip.pdf';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                        }
+
                         // Hide the form
                         const form = document.getElementById("add-student-form");
                         form.style.display = "none";

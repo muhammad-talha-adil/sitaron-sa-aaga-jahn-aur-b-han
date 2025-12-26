@@ -63,7 +63,7 @@
                                         <div class="card-toolbar flex-row-fluid justify-content-end gap-5">
                                             <!--begin::Filters-->
                                             <div class="d-flex align-items-center gap-3">
-                                                
+
 
                                                 <!-- Grade Filter -->
                                                 <select class="form-select form-select-solid fw-bold grade-filter" id="grade_filter" style="width: 140px;">
@@ -72,6 +72,11 @@
                                                     <option value="9" {{ request('grade') == '9' ? 'selected' : '' }}>9th Grade</option>
                                                     <option value="10" {{ request('grade') == '10' ? 'selected' : '' }}>10th Grade</option>
                                                 </select>
+
+                                                <!-- Download List Button -->
+                                                <button type="button" class="btn btn-sm btn-success download-pdf-btn">
+                                                    <i class="bi bi-download"></i> Download List
+                                                </button>
                                             </div>
                                             <!--end::Filters-->
                                         </div>
@@ -136,9 +141,9 @@
                                                         @endif
                                                     </td>
                                                     <td class="text-center">
-                                                        <button type="button" class="btn btn-sm btn-info download-roll-slip"
+                                                        <button type="button" class="btn btn-sm btn-info download-participation-slip"
                                                             data-student-id="{{ $student->id }}">
-                                                            <i class="bi bi-download"></i> Roll Slip
+                                                            <i class="bi bi-download"></i> Participation Slip
                                                         </button>
                                                     </td>
                                                     <td class="text-end">
@@ -200,10 +205,16 @@
         window.location.href = '{{ url("students") }}' + (queryString ? '?' + queryString : '');
     });
 
-    $(document).on('click', '.download-roll-slip', function (e) {
+    $(document).on('click', '.download-pdf-btn', function (e) {
+        e.preventDefault();
+        let grade = $('#grade_filter').val();
+        processPdfDownload(grade);
+    });
+
+    $(document).on('click', '.download-participation-slip', function (e) {
         e.preventDefault();
         let studentId = $(this).data('student-id');
-        processRollSlipDownload(studentId);
+        processParticipationSlipDownload(studentId);
     });
 
     $(document).on('click', '.delete-student', function (e) {
@@ -230,13 +241,34 @@
         }
     });
 
-    function processRollSlipDownload(studentId) {
+    function processParticipationSlipDownload(studentId) {
         disable_submit_btn();
         $.ajax({
             url: api_base_url + "students/download-single-roll-slip",
             method: 'POST',
             data: JSON.stringify({
                 student_id: studentId
+            }),
+            dataType: "JSON",
+            contentType: "application/json",
+            success: function (response) {
+                enable_submit_btn();
+                if (response.status) {
+                    openPrintWindow(response.download_path);
+                } else {
+                    error_toaster(response.message);
+                }
+            }
+        });
+    }
+
+    function processPdfDownload(grade) {
+        disable_submit_btn();
+        $.ajax({
+            url: api_base_url + "students/download-pdf",
+            method: 'POST',
+            data: JSON.stringify({
+                grade: grade
             }),
             dataType: "JSON",
             contentType: "application/json",
